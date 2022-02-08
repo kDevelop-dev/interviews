@@ -1,0 +1,97 @@
+stages:
+  - check
+  - build
+  - codestyle
+  - analyze
+  - tests
+
+variables:
+  TEMP_DB_NAME: "app-db-temp-$CI_PIPELINE_ID"
+
+cache: &global_cache
+  key: ${CI_COMMIT_SHA}
+  paths:
+    - vendor/
+    - composer.lock
+    - .env
+    - storage
+  policy: pull-push
+
+check:origin:
+  tags:
+    - trv2-shell
+  stage: check
+  script:
+    - if [[ $(git rev-list $CI_COMMIT_SHA..origin/dev --count) > 0 ]]; then echo "Origin ahead!"; exit 1; fi
+  except:
+    - master
+    - dev
+  allow_failure : true
+build:
+  tags:
+    - trv2-shell
+  stage: build
+  variables:
+    COMPOSER_ROOT_VERSION: "1.1000.0"
+  script:
+    - sh extra-commands.sh
+    - /usr/bin/php8.1 /usr/bin/composer validate
+    - /usr/bin/php8.1 /usr/bin/composer create-project
+  cache:
+    <<: *global_cache
+    policy: push
+
+codestyle:
+  tags:
+    - trv2-shell
+  stage: analyze
+  script:
+    - /usr/bin/php8.1 /usr/bin/composer du
+    - /usr/bin/php8.1 ./vendor/bin/phpcs --standard=./vendor/******/quality-tools/src/phpcs.xml --ignore=Migrations/*,*ide_helper.php,*macros.php src
+  cache:
+    <<: *global_cache
+    policy: pull
+
+stan:
+  tags:
+    - trv2-shell
+  stage: analyze
+  script:
+    - /usr/bin/php8.1 /usr/bin/composer du
+    - /usr/bin/php8.1 ./vendor/bin/phpstan analyse -c ./vendor/******/quality-tools/src/phpstan.neon src
+  cache:
+    <<: *global_cache
+    policy: pull
+
+md:
+  tags:
+    - trv2-shell
+  stage: analyze
+  script:
+    - /usr/bin/php8.1 /usr/bin/composer du
+    - /usr/bin/php8.1 ./vendor/bin/phpmd src text ./vendor/******/quality-tools/src/phpmd.xml
+  cache:
+    <<: *global_cache
+    policy: pull
+
+tests:
+  tags:
+    - trv2-shell
+  stage: tests
+  script:
+    - sed -i 's/APP_ENV=production/APP_ENV=testing/g' .env
+    - /usr/bin/php8.1 /usr/bin/composer du
+    - mysql -urunner -p$MYSQL_PASS -e "DROP DATABASE IF EXISTS \`$TEMP_DB_NAME\`; CREATE DATABASE \`$TEMP_DB_NAME\`;"
+    - cp phpunit.xml.dist phpunit.xml
+    - sed -i 's/app_db/'"$TEMP_DB_NAME"'/g' .env
+    - sed -i 's/app_pass/'"$MYSQL_PASS"'/g' .env
+    - sed -i 's/app_user/runner/g' .env
+    - sed -i 's/APP_ENV=local/APP_ENV=testing/g' .env
+    - /usr/bin/php8.1 ./artisan migrate:fresh --force
+    - /usr/bin/php8.1 ./vendor/bin/paratest -p8
+    - /usr/bin/php8.1 ./vendor/bin/phpunit
+  after_script :
+    - mysql -urunner -p$MYSQL_PASS -e "DROP DATABASE IF EXISTS \`$TEMP_DB_NAME\`;"
+  cache:
+    <<: *global_cache
+    policy: pull

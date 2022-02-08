@@ -1,0 +1,33 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      #setup keys
+      - run: set -eu
+      - run: mkdir $HOME/.ssh
+      - run: echo "${{ secrets.SSH_PRIVATE_KEY }}" > $HOME/.ssh/key
+      - run: chmod 600 $HOME/.ssh/key
+
+      #build
+      - run: cp .env.example .env
+      - run: sed -i 's/APP_URL_VARIABLE/${{ secrets.APP_URL_VARIABLE }}/g' .env
+      - run: sed -i 's/APP_FRONT_URL_VARIABLE/${{ secrets.APP_FRONT_URL_VARIABLE }}/g' .env
+      - run: sed -i 's/APP_FRONT_SECRET_VARIABLE/${{ secrets.APP_FRONT_SECRET_VARIABLE }}/g' .env
+      - run: sed -i 's/DB_DATABASE_VARIABLE/${{ secrets.DB_DATABASE_VARIABLE }}/g' .env
+      - run: sed -i 's/DB_USERNAME_VARIABLE/${{ secrets.DB_USERNAME_VARIABLE }}/g' .env
+      - run: sed -i 's/DB_PASSWORD_VARIABLE/${{ secrets.DB_PASSWORD_VARIABLE }}/g' .env
+      - run: npm install --global cross-env && npm update
+      - run: npm run prod
+
+      #delivery
+      - run: rsync -e "ssh -i $HOME/.ssh/key -o StrictHostKeyChecking=no" --archive --compress --omit-dir-times --exclude '.git' --exclude '.github' . "${{ secrets.USER_NAME }}"@"${{ secrets.HOST_IP }}":"${{ secrets.DIR_PATH }}"
+      - run: ssh "${{ secrets.USER_NAME }}"@"${{ secrets.HOST_IP }}" -i $HOME/.ssh/key -o StrictHostKeyChecking=no 'cd "${{ secrets.DIR_PATH }}" && ./artisan down && composer up --prefer-dist --no-dev && ./artisan optimize && ./artisan migrate --force && ./artisan key:generate --force && ./artisan queue:restart && ./artisan up'
