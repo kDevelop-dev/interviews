@@ -3,8 +3,6 @@
 ### Поддерживаемые провайдеры:
 1) Telegram
 
-### Примеры использования
-
 ### Установка
 ```
 composer require kdevelop/notifier
