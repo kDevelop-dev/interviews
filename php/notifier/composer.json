@@ -1,0 +1,35 @@
+{
+    "name": "kdevelop/notifier",
+    "type": "library",
+    "description": "",
+    "minimum-stability": "dev",
+    "require": {
+        "php": "^8.1",
+        "telegram-bot/api": "^2.0"
+    },
+    "require-dev": {
+        "squizlabs/php_codesniffer": "^3.0",
+        "phpstan/phpstan": "^1.11",
+        "phpunit/phpunit": "^11.2",
+        "phpmd/phpmd": "dev-master"
+    },
+    "autoload": {
+        "psr-4": {
+            "KDevelop\\Notifier\\": "src/"
+        }
+    },
+    "scripts": {
+        "phpcs": [
+            "php vendor/bin/phpcs src -p --standard=phpcs.xml"
+        ],
+        "phpmd": [
+            "vendor/bin/phpmd src text phpmd.xml"
+        ],
+        "phpstan": [
+            "php vendor/bin/phpstan analyze src"
+        ],
+        "phpunit": [
+            "php vendor/bin/phpunit tests"
+        ]
+    }
+}
